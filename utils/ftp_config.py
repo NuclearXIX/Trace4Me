@@ -1,5 +1,16 @@
 # utils/ftp_config.py
-import json
+import os
+
+# Load FTP credentials from environment variables
+FTP_HOST = os.getenv("FTP_HOST")
+FTP_PORT = int(os.getenv("FTP_PORT", 21))  # default port 21
+FTP_USER = os.getenv("FTP_USER")
+FTP_PASS = os.getenv("FTP_PASS")
+
+# Ensure all variables are set
+if not all([FTP_HOST, FTP_USER, FTP_PASS]):
+    raise Exception("FTP credentials not found. Make sure FTP_HOST, FTP_USER, and FTP_PASS are set as environment variables.")
+    
 from pathlib import Path
 from typing import Optional, Any, Dict
 
