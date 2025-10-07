@@ -554,10 +554,10 @@ class TraceCog(commands.Cog):
 
         # ---------------- load track points ------------------
         try:
-            from tracer.ftp_loader import fetch_ftp_logs, build_track_from_logs
+                from tracer.ftp_loader import fetch_ftp_logs, build_track_from_logs
 
-                log_lines = fetch_ftp_logs(gid)
-                doc = build_track_from_logs(log_lines, resolved_tag)
+                    log_lines = fetch_ftp_logs(gid)
+                    doc = build_track_from_logs(log_lines, resolved_tag)
         except Exception as e:
             _log(gid, "load_track raised", {"gamertag": resolved_tag, "error": repr(e)})
             return await interaction.followup.send(
