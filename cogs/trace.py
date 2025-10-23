@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple, Optional
+from itertools import product
 
 import discord
 from discord import app_commands
@@ -62,31 +63,62 @@ MAP_SLUG = {
     "namalsk": "namalsk",
 }
 
+# Use canonical lowercase filenames (Linux is case-sensitive)
 MAP_PATHS = {
-    "chernarus+": "assets/maps/chernarus_base.PNG",
-    "chernarus": "assets/maps/chernarus_base.PNG",
-    "livonia": "assets/maps/livonia_base.PNG",
-    "namalsk": "assets/maps/namalsk_base.PNG",
+    "chernarus+": "assets/maps/chernarus_base.png",
+    "chernarus":  "assets/maps/chernarus_base.png",
+    "livonia":    "assets/maps/livonia_base.png",
+    "namalsk":    "assets/maps/namalsk_base.png",
 }
 
 
 def _resolve_asset(rel_path: str) -> Path | None:
-    """Try several locations to find an asset on disk."""
-    candidates: list[Path] = []
+    """
+    Try several locations and extensions to find an asset on disk.
+    Tries with and without the 'Trace4Me/' prefix, and .png/.PNG.
+    Logs all attempted absolute paths if not found.
+    """
     rel = Path(rel_path)
-    here = Path(__file__).resolve().parent
+    here = Path(__file__).resolve().parent        # .../Trace4Me/cogs
+    pkg_root = here.parent                         # .../Trace4Me
+    repo_root = Path.cwd()                         # /app (Railway default)
 
-    candidates.append(Path.cwd() / rel)         # current working dir
-    candidates.append(here / rel)               # alongside this file
-    candidates.append(here.parent / rel)        # project root (parent of /cogs)
-    candidates.append(Path("/app") / rel)       # Railway default root
+    # If a suffix exists, also try alternate case variants
+    rel_variants: list[Path] = []
+    if rel.suffix:
+        stem = rel.with_suffix("").as_posix()
+        for ext in (".png", ".PNG"):
+            rel_variants.append(Path(stem + ext))
+    # Always include the original rel as well
+    rel_variants.append(rel)
 
-    for p in candidates:
+    # Also try with package dir prefix
+    rel_with_pkg = [Path("Trace4Me") / v for v in rel_variants]
+    all_rels = rel_variants + rel_with_pkg
+
+    search_roots = [repo_root, pkg_root, here, Path("/app")]
+
+    tried: list[str] = []
+    for root, relc in product(search_roots, all_rels):
+        p = (root / relc).resolve()
+        tried.append(str(p))
         try:
             if p.exists() and p.is_file():
                 return p
         except Exception:
             continue
+
+    # Last resort: glob in the expected directory (case-insensitive-ish)
+    try:
+        base_dir = (repo_root / rel.parent).resolve()
+        if base_dir.exists():
+            for cand in base_dir.glob(rel.stem + ".*"):
+                if cand.is_file():
+                    return cand
+    except Exception:
+        pass
+
+    _log(None, "map file not found; using fallback", {"expected": rel_path, "tried": tried})
     return None
 
 
@@ -118,6 +150,7 @@ def _world_to_image(x: float, z: float, world_size: int, img_size: int) -> Tuple
 
 def _load_map_image(gid: int | None, map_name: str, size_px: int = 1200) -> Image.Image:
     rel = MAP_PATHS.get(map_name.lower())
+    _log(gid, "resolve map asset", {"map": map_name, "rel": rel})
     if rel:
         abs_path = _resolve_asset(rel)
         if abs_path:
